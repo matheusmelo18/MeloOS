@@ -1,4 +1,4 @@
-export image_name := env("IMAGE_NAME", "image-template") # output image name, usually same as repo name, change as needed
+export image_name := env("IMAGE_NAME", "meloos")
 export default_tag := env("DEFAULT_TAG", "latest")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
 
@@ -293,7 +293,6 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
 
-
 # Runs shell check on all Bash scripts
 lint:
     #!/usr/bin/env bash
@@ -317,3 +316,39 @@ format:
     fi
     # Run shfmt on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
+
+[group('Distrobox')]
+create-devbox:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/distrobox/create-devbox.sh
+
+[group('Distrobox')]
+create-dev-java:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/distrobox/create-dev-java.sh
+
+[group('Distrobox')]
+create-dev-node:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/distrobox/create-dev-node.sh
+
+[group('Distrobox')]
+create-dev-go:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/distrobox/create-dev-go.sh
+
+[group('Bootstrap')]
+install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/install.sh
+
+[group('Distrobox')]
+export-dev-app container app:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/distrobox/export-app.sh {{ container }} {{ app }}

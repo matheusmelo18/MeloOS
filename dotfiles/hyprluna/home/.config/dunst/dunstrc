@@ -1,0 +1,7 @@
+[global]
+follow = mouse
+frame_color = "#88c0d0"
+separator_color = frame
+
+[urgency_low]
+timeout = 4
