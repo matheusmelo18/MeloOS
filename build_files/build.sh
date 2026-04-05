@@ -106,7 +106,17 @@ BASE_PACKAGES=(
 # Install host packages (immutable image layer)
 # -------------------------------------------------------------------
 
-rpm-ostree install "${BASE_PACKAGES[@]}"
+for attempt in 1 2 3; do
+    if rpm-ostree install "${BASE_PACKAGES[@]}"; then
+        break
+    fi
+
+    if [ "$attempt" -eq 3 ]; then
+        exit 1
+    fi
+
+    sleep $((attempt * 5))
+done
 
 # -------------------------------------------------------------------
 # Enable system services needed on host
