@@ -58,8 +58,6 @@ sudoif command *args:
     function sudoif(){
         if [[ "${UID}" -eq 0 ]]; then
             "$@"
-        elif [[ "$(command -v sudo)" && -n "${SSH_ASKPASS:-}" ]] && [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
-            /usr/bin/sudo --askpass "$@" || exit 1
         elif [[ "$(command -v sudo)" ]]; then
             /usr/bin/sudo "$@" || exit 1
         else
@@ -121,33 +119,25 @@ _rootful_load_image $target_image=image_name $tag=default_tag:
     #!/usr/bin/bash
     set -eoux pipefail
 
-    # Check if already running as root or under sudo
-    if [[ -n "${SUDO_USER:-}" || "${UID}" -eq "0" ]]; then
-        echo "Already root or running under sudo, no need to load image from user podman."
+    podman_root=(podman)
+    if [[ "${UID}" -ne 0 ]]; then
+        podman_root=(sudo podman)
+    fi
+
+    if "${podman_root[@]}" inspect -t image "${target_image}:${tag}" >/dev/null 2>&1; then
+        echo "Image already available in rootful podman."
         exit 0
     fi
 
-    # Try to resolve the image tag using podman inspect
-    set +e
-    resolved_tag=$(podman inspect -t image "${target_image}:${tag}" | jq -r '.[].RepoTags.[0]')
-    return_code=$?
-    set -e
-
-    USER_IMG_ID=$(podman images --filter reference="${target_image}:${tag}" --format "'{{ '{{.ID}}' }}'")
-
-    if [[ $return_code -eq 0 ]]; then
-        # If the image is found, load it into rootful podman
-        ID=$(just sudoif podman images --filter reference="${target_image}:${tag}" --format "'{{ '{{.ID}}' }}'")
-        if [[ "$ID" != "$USER_IMG_ID" ]]; then
-            # If the image ID is not found or different from user, copy the image from user podman to root podman
-            COPYTMP=$(mktemp -p "${PWD}" -d -t _build_podman_scp.XXXXXXXXXX)
-            just sudoif TMPDIR=${COPYTMP} podman image scp ${UID}@localhost::"${target_image}:${tag}" root@localhost::"${target_image}:${tag}"
-            rm -rf "${COPYTMP}"
-        fi
-    else
-        # If the image is not found, pull it from the repository
-        just sudoif podman pull "${target_image}:${tag}"
+    if [[ "${UID}" -ne 0 ]] && podman inspect -t image "${target_image}:${tag}" >/dev/null 2>&1; then
+        TMPDIR=$(mktemp -d -p "${PWD}" -t _build_podman_load.XXXXXXXXXX)
+        podman save "${target_image}:${tag}" -o "${TMPDIR}/image.tar"
+        "${podman_root[@]}" load -i "${TMPDIR}/image.tar"
+        rm -rf "${TMPDIR}"
+        exit 0
     fi
+
+    "${podman_root[@]}" pull "${target_image}:${tag}"
 
 # Build a bootc bootable image using Bootc Image Builder (BIB)
 # Converts a container image to a bootable image
@@ -168,7 +158,13 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
 
     BUILDTMP=$(mktemp -p "${PWD}" -d -t _build-bib.XXXXXXXXXX)
 
-    sudo podman run \
+    if [[ "${UID}" -eq 0 ]]; then
+        podman_cmd=(podman)
+    else
+        podman_cmd=(sudo podman)
+    fi
+
+    "${podman_cmd[@]}" run \
       --rm \
       -it \
       --privileged \
@@ -178,14 +174,19 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
       -v $(pwd)/${config}:/config.toml:ro \
       -v $BUILDTMP:/output \
       -v /var/lib/containers/storage:/var/lib/containers/storage \
-      "${bib_image}" \
+        "{{ bib_image }}" \
       ${args} \
       "${target_image}:${tag}"
 
     mkdir -p output
-    sudo mv -f $BUILDTMP/* output/
-    sudo rmdir $BUILDTMP
-    sudo chown -R $USER:$USER output/
+    if [[ "${UID}" -eq 0 ]]; then
+      mv -f $BUILDTMP/* output/
+      rmdir $BUILDTMP
+    else
+      sudo mv -f $BUILDTMP/* output/
+      sudo rmdir $BUILDTMP
+      sudo chown -R $USER:$USER output/
+    fi
 
 # Podman builds the image from the Containerfile and creates a bootable image
 # Parameters:

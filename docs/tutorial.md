@@ -12,7 +12,8 @@ Pré-requisitos:
 
 Obs.: no Fedora 43, o stack do Hyprland é obtido via COPR no build do projeto, então o fluxo já inclui isso na imagem final.
 
-Instale as ferramentas necessárias no host de desenvolvimento e entre no ambiente de trabalho:
+O host deve já vir com os pré-requisitos na imagem; o fluxo normal de `install` não faz `rpm-ostree install` nem bootstrap online do SDKMAN.
+Entre no ambiente de trabalho:
 
 ```bash
 just install
@@ -20,7 +21,7 @@ distrobox enter dev-java
 distrobox enter dev-node
 ```
 
-Use `dev-java` para tarefas com SDKMAN e `dev-node` para validar o stack Node. O host continua limpo; o desenvolvimento acontece nos containers.
+Use `dev-java` para Java/Maven/Gradle já prontos e `dev-node` para validar o stack Node. Se o `dev-java` vier incompleto, o `install` falha com instrução clara para reconstruir o container.
 
 ## 2. Construir a imagem personalizada
 
@@ -58,9 +59,12 @@ just build-qcow2 ghcr.io/your-user/meloos custom
 just build-raw ghcr.io/your-user/meloos custom
 ```
 
+- `just build-iso` agora funciona porque `disk_config/iso.toml` existe.
 - **ISO**: instalação em PC real ou VM
 - **QCOW2**: máquinas virtuais
 - **RAW**: gravação direta em disco ou mídia
+
+A ISO usa a imagem embutida do MeloOS, não um image registry separado.
 
 Os artefatos são gerados em `output/`.
 
@@ -75,7 +79,7 @@ Os artefatos são gerados em `output/`.
 just install
 ```
 
-Esse passo aplica os pacotes do host, configura Flatpak, prepara os containers `dev-java` e `dev-node` e também aplica o perfil de dotfiles inspirado no HyprLuna.
+Esse passo configura Flatpak, valida os containers `dev-java` e `dev-node` e também aplica o perfil de dotfiles inspirado no HyprLuna.
 
 O perfil inclui configs para Hyprland, Waybar, Kitty, Wofi, Dunst, Hyprpaper, Hyprlock, Hypridle e um placeholder leve para AGS.
 Ele é original, pensado para Fedora 43, e não copia o projeto HyprLuna arquivado.

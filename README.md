@@ -90,7 +90,9 @@ just install
 
 ### 4. Reboot if asked
 
-If the host needs extra base packages on `rpm-ostree`, the script queues them and creates a small user-level resume service. After reboot and login, the installer runs again and skips completed steps.
+The normal install flow does not install missing host packages or bootstrap SDKMAN.
+The host must already include the required prerequisites in the image, and `dev-java` must already ship with Java, Maven and Gradle.
+If any of those are missing, the installer stops with a clear error so the image can be fixed first.
 
 ### 5. Use the dev containers
 
@@ -126,14 +128,12 @@ The apply script is idempotent and backs up conflicting files into `~/.local/sta
 It performs these steps:
 
 1. check host tools
-2. install missing host packages with `rpm-ostree` when required
-3. resume automatically after reboot if the host layer changed
-4. add Flathub
-5. install all desktop Flatpaks
-6. create `dev-java` and `dev-node`
-7. initialize SDKMAN in `dev-java`
-8. verify the Node container is healthy
-9. apply the dotfiles profile into the user home directory
+2. add Flathub
+3. install all desktop Flatpaks
+4. create `dev-java` and `dev-node`
+5. verify `dev-java` already contains Java, Maven and Gradle
+6. verify the Node container is healthy
+7. apply the dotfiles profile into the user home directory
 
 ## Switching to a custom image
 
@@ -166,10 +166,11 @@ just build-iso ghcr.io/you/meloos custom
 ```
 
 These produce the VM and installer artifacts under `output/`.
+`just build-iso` now works because `disk_config/iso.toml` exists.
 
 - **QCOW2**: best for virtual machines
 - **RAW**: best for disk flashing or low-level image use
-- **ISO**: best for fresh installation on physical hardware or VMs
+- **ISO**: best for fresh installation on physical hardware or VMs; it installs the embedded MeloOS image, not a registry image
 
 ### 3. Switch an installed system to your image
 
@@ -215,20 +216,18 @@ systemctl reboot
 
 After reboot, confirm the system returned to the prior known-good image.
 
-## What the bootstrap does
+## What `just install` does
 
 The installer is idempotent and non-interactive.
 It:
 
-- checks host dependencies
-- installs missing host dependencies with `rpm-ostree` when needed
+- checks that the host already provides the required runtime tools
 - records named steps in `~/.local/state/meloos-install/state.env`
-- resumes automatically after `rpm-ostree` reboots when possible
 - adds Flathub if needed
 - installs the desktop Flatpaks
 - creates the Java and Node containers
-- initializes SDKMAN in the Java container
-- uses the Node Distrobox profile for `nodejs`/`npm` and does not bootstrap them manually
+- verifies that `dev-java` already contains Java, Maven and Gradle
+- verifies that `dev-node` already contains `nodejs` and `npm`
 
 ## Exact host role
 
@@ -241,11 +240,13 @@ The host image is responsible for:
 - only system-level packages
 
 Toolchains stay out of the host image.
+The host image must already provide the prerequisites expected by `just install`.
 
 ## Java setup
 
-The Java container uses Ubuntu 24.04 and SDKMAN.
-Inside it, you can manage JDKs, Maven and Gradle without installing them on the host.
+The Java container uses Ubuntu 24.04 and must already include Java, Maven and Gradle.
+There is no SDKMAN bootstrap during install anymore.
+If the container is missing any of those tools, `just install` fails and asks you to rebuild `dev-java` first.
 
 ## Node setup
 

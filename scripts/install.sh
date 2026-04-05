@@ -64,14 +64,8 @@ ensure_host_packages(){
   local missing=() pkg
   for pkg in "${HOST_PACKAGES[@]}"; do have_cmd "$pkg" || missing+=("$pkg"); done
   (( ${#missing[@]} == 0 )) && return 0
-  if have_cmd rpm-ostree; then
-    log "Missing host packages: ${missing[*]}"
-    install_resume_service
-    sudo rpm-ostree install "${missing[@]}"
-    log "Host packages queued. Reboot; the installer will resume automatically after login or you can rerun just install."
-    exit 0
-  fi
   log "Missing host dependencies: ${missing[*]}"
+  log "Rebuild the host image or install these prerequisites outside the install flow, then rerun scripts/install.sh."
   exit 1
 }
 
@@ -93,11 +87,9 @@ ensure_container(){
 setup_java_container(){
   distrobox enter dev-java -- bash -lc '
     set -euo pipefail
-    if [ ! -d "$HOME/.sdkman" ]; then curl -fsSL https://get.sdkman.io | bash; fi
-    source "$HOME/.sdkman/bin/sdkman-init.sh"
-    sdk install java 21.0.6-tem || true
-    sdk install maven || true
-    sdk install gradle || true
+    command -v java >/dev/null 2>&1 || { echo "dev-java is not ready: java is missing from the container image. Rebuild the container first." >&2; exit 1; }
+    command -v mvn >/dev/null 2>&1 || { echo "dev-java is not ready: maven is missing from the container image. Rebuild the container first." >&2; exit 1; }
+    command -v gradle >/dev/null 2>&1 || { echo "dev-java is not ready: gradle is missing from the container image. Rebuild the container first." >&2; exit 1; }
   '
 }
 
